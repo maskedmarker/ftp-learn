@@ -6,48 +6,51 @@ import org.apache.ftpserver.ftplet.FtpException;
 import org.apache.ftpserver.listener.ListenerFactory;
 import org.apache.ftpserver.usermanager.ClearTextPasswordEncryptor;
 import org.apache.ftpserver.usermanager.PropertiesUserManagerFactory;
+import org.example.learn.ftp.server.constant.UserPropertiesConstant;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URI;
 import java.util.Properties;
 
 public class FtpServerStarter {
 
+    private static final Logger logger = LoggerFactory.getLogger(FtpServerStarter.class);
+
+    // 用户配置文件
+    public static final String USERS_PROPERTIES_IN_CLASSPATH = "users.properties";
+
     public static void main(String[] args) throws Exception {
+        FtpServerFactory ftpServerFactory = new FtpServerFactory();
 
-        FtpServerFactory serverFactory = new FtpServerFactory();
-
-        ListenerFactory factory = new ListenerFactory();
-        factory.setPort(2121); // 默认21端口可能会被占用或被权限限制
-
-        // 替换默认监听器
-        serverFactory.addListener("default", factory.createListener());
+        ListenerFactory listenerFactory = new ListenerFactory();
+        listenerFactory.setPort(2121); // 默认21端口可能会被占用或被权限限制
+        ftpServerFactory.addListener("default", listenerFactory.createListener());
 
         // 配置用户（使用基于 properties 文件的用户管理）
         PropertiesUserManagerFactory userManagerFactory = new PropertiesUserManagerFactory();
-        userManagerFactory.setFile(new File("users.properties")); // 用户配置文件
+        userManagerFactory.setFile(new File(FtpServerStarter.class.getClassLoader().getResource(USERS_PROPERTIES_IN_CLASSPATH).toURI()));
         userManagerFactory.setPasswordEncryptor(new ClearTextPasswordEncryptor()); // 明文密码
-        serverFactory.setUserManager(userManagerFactory.createUserManager());
+        ftpServerFactory.setUserManager(userManagerFactory.createUserManager());
 
         ensureHomeDirectoryExists();
 
         // 启动 FTP 服务器
-        FtpServer server = serverFactory.createServer();
+        FtpServer server = ftpServerFactory.createServer();
         server.start();
-
-        ensureHomeDirectoryExists("/tmp/ftpuser");
     }
 
     public static void ensureHomeDirectoryExists() throws Exception {
-        // 加载 properties 文件
         Properties props = new Properties();
-        props.load(new FileInputStream("resources/users.properties"));
+        props.load(FtpServerStarter.class.getClassLoader().getResourceAsStream(USERS_PROPERTIES_IN_CLASSPATH));
 
         // 遍历找出所有 homedirectory，创建之
         for (String key : props.stringPropertyNames()) {
-            if (key.endsWith(".homedirectory")) {
+            if (key.endsWith("." + UserPropertiesConstant.KEY_HOME_DIRECTORY)) {
                 String path = props.getProperty(key);
                 ensureHomeDirectoryExists(path);
             }
@@ -58,10 +61,12 @@ public class FtpServerStarter {
         File dir = new File(path);
         if (!dir.exists()) {
             if (dir.mkdirs()) {
-                System.out.println("Created home directory: " + path);
+                logger.info("created home directory:{}", dir.getAbsolutePath());
             } else {
-                System.err.println("Failed to create home directory: " + path);
+                logger.info("failed to create home directory:{}", dir.getAbsolutePath());
             }
+        } else {
+            logger.info("exists home directory:{}", dir.getAbsolutePath());
         }
     }
 }

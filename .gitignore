@@ -20,3 +20,5 @@ build
 
 #logs
 logs/
+# the dir of user home on the ftp server
+tmp/
